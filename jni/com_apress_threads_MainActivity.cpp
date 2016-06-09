@@ -198,11 +198,12 @@ void Java_com_apress_threads_MainActivity_posixThreads (
 		jint threads,
 		jint iterations)
 {
+	pthread_t *handles = new pthread_t[threads];
 	// Create a POSIX thread for each worker
 	for (jint i = 0; i < threads; i++)
 	{
 		// Thread handle
-		pthread_t thread;
+//		pthread_t thread;
 
 		// Native worker thread arguments
 		NativeWorkerArgs* nativeWorkerArgs = new NativeWorkerArgs();
@@ -211,7 +212,7 @@ void Java_com_apress_threads_MainActivity_posixThreads (
 
 		// Create a new thread
 		int result = pthread_create(
-				&thread,
+				&handles[i],
 				NULL,
 				nativeWorkerThread,
 				(void*) nativeWorkerArgs);
@@ -224,6 +225,25 @@ void Java_com_apress_threads_MainActivity_posixThreads (
 
 			// Throw exception
 			env->ThrowNew(exceptionClazz, "Unable to create thread");
+			goto exit;
 		}
 	}
+	// wait for thread finish
+	for (jint i = 0; i < threads; i ++) {
+		void *result = NULL;
+		if (0 != pthread_join(handles[i], &result)) {
+			jclass exceptionClazz = env->FindClass("java/lang/RuntimeException");
+			env->ThrowNew(exceptionClazz, "Unable to join thread");
+		} else {
+			char message[32];
+			sprintf(message, "worker %d returned %d", i, result);
+			jstring messageString = env->NewStringUTF(message);
+			env->CallVoidMethod(obj, gOnNativeMessage, messageString);
+			if (NULL != env->ExceptionOccurred()) {
+				goto exit;
+			}
+		}
+	}
+exit:
+    return;
 }
